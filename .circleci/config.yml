@@ -1,26 +1,70 @@
-# Use the latest 2.1 version of CircleCI pipeline process engine.
-# See: https://circleci.com/docs/2.0/configuration-reference
 version: 2.1
 
-# Define a job to be invoked later in a workflow.
-# See: https://circleci.com/docs/2.0/configuration-reference/#jobs
+commands:
+  print_pipeline_id:
+    description: Print me this Pipeline ID
+    parameters:
+      to:
+        type: string
+        default: default_pipeline_id
+    steps:
+      - run: echo $CIRCLE_WORKFLOW_ID
+
 jobs:
-  say-hello:
-    # Specify the execution environment. You can specify an image from Dockerhub or use one of our Convenience Images from CircleCI's Developer Hub.
-    # See: https://circleci.com/docs/2.0/configuration-reference/#docker-machine-macos-windows-executor
+  save-hello-world-output:
     docker:
       - image: cimg/base:stable
-    # Add steps to the job
-    # See: https://circleci.com/docs/2.0/configuration-reference/#steps
     steps:
       - checkout
       - run:
-          name: "Say hello"
-          command: "echo Hello, World!"
+          name: "Save Text to File"
+          command: "echo 'text to output here' > ~/output.txt"
+      - persist_to_workspace:
+          root: ~/
+          paths:
+            - output.txt
 
-# Invoke jobs via workflows
-# See: https://circleci.com/docs/2.0/configuration-reference/#workflows
+  print-hello-world-output:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - attach_workspace:
+          at: ~/
+      - run:
+          name: "Print From Saved File"
+          command: "cat ~/output.txt"
+
+  test-command:
+    docker:
+      - image: circleci/node:13.8.0
+    steps:
+      - checkout
+      - print_pipeline_id
+      - run:
+          name: "Print Env Var"
+          command: "echo $TEST_ENV_VAR"
+
+  handle-failing-job:
+    docker:
+      - image: circleci/node:13.8.0
+    steps:
+      - run: return 1   
+      - run:
+          name: "Handler for failed job"
+          command: echo 'job failed'
+          when: on_fail 
+
 workflows:
-  say-hello-workflow:
+  save-retrieve-output:
     jobs:
-      - say-hello
+      - save-hello-world-output
+      - print-hello-world-output:
+          requires: [save-hello-world-output]
+
+  test-features-workflow:
+    jobs:
+      - test-command
+      - handle-failing-job
+
+
